@@ -1,44 +1,51 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#172b4d">
-  
 <meta charset="UTF-8">
-  <link rel="manifest" href="manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#172b4d">
 <title>Shop Ledger</title>
 <style>
-
-  
 *{box-sizing:border-box}
 body{margin:0;background:#f3f5f9;color:#202b3c;font-family:Arial,sans-serif}
 header{background:#172b4d;color:white;padding:22px}
 header h2{margin:0}
-main{padding:16px;max-width:600px;margin:auto}
+main{padding:16px;max-width:700px;margin:auto}
 .card{background:white;padding:17px;border-radius:14px;margin-bottom:14px;box-shadow:0 2px 8px #0000000d}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:#eef3fa;padding:13px;border-radius:10px}
+.stat{background:#eef3fa;padding:13px;border-radius:10px;min-width:0}
 .stat small{color:#58677c}
-.stat h3{margin:8px 0 0;font-size:21px}
-input,select{width:100%;padding:13px;border:1px solid #ccd3df;border-radius:9px;margin:7px 0;font-size:16px;background:white}
-button{border:0;padding:13px;border-radius:9px;background:#2459a6;color:white;font-size:15px;font-weight:bold;cursor:pointer}
+.stat h3{margin:8px 0 0;font-size:20px;overflow-wrap:anywhere}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ccd3df;border-radius:9px;margin:7px 0;font-size:16px;background:white;color:#202b3c}
+button{border:0;padding:12px 14px;border-radius:9px;background:#2459a6;color:white;font-size:14px;font-weight:bold;cursor:pointer;margin:4px 3px 4px 0}
 button:active{opacity:.8}
 .primary{width:100%;margin-top:8px}
+.secondary{background:#e8eef7;color:#1d3e70}
+.danger{background:#b83232}
 .entry{padding:12px 0;border-bottom:1px solid #eee}
 .entry:last-child{border:0}
 .muted{color:#68768b;font-size:13px}
 .green{color:#13834b}
 .red{color:#c23c3c}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1;min-width:0}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center}
+.dayname{font-size:12px;color:#68768b;font-weight:bold;padding:7px 0}
+.day{padding:10px 2px;border-radius:8px;background:#f0f3f8;min-height:39px;cursor:pointer;font-size:14px}
+.day.selected{background:#2459a6;color:white;font-weight:bold}
+.day.today{outline:2px solid #e0a52b}
+.day.hasdata:after{content:" •";color:#d18b00;font-weight:bold}
+.day.selected.hasdata:after{color:white}
+.monthnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.monthnav h3{margin:8px 0}
+.pill{display:inline-block;background:#eef3fa;border-radius:20px;padding:4px 9px;font-size:12px;color:#43536a}
+hr{border:0;border-top:1px solid #e7ebf1;margin:14px 0}
+.smallbtn{padding:8px 10px;font-size:12px}
+.hidden{display:none}
 </style>
 </head>
 <body>
-<header>
-<h2>Shop Ledger</h2>
-<p>My Shop Accounting</p>
-</header>
+<header><h2>Shop Ledger</h2><p>My Shop Accounting</p></header>
 <main>
 <section class="card">
 <h3>Today's Summary</h3>
@@ -53,335 +60,302 @@ button:active{opacity:.8}
 </section>
 
 <section class="card">
-<h3>Accounting Reports</h3>
-<button class="primary" onclick="showReport('day')">
-Daily Report
-</button>
-<button class="primary" onclick="showReport('month')">
-Monthly Report
-</button>
-<div id="report" style="margin-top:15px"></div>
-<button class="primary" onclick="exportCSV()">
-Export Transactions to CSV
-</button>
+<h3>Calendar & Daily Reports</h3>
+<div class="monthnav">
+<button class="secondary" onclick="changeMonth(-1)">‹ Previous</button>
+<h3 id="calendarMonth"></h3>
+<button class="secondary" onclick="changeMonth(1)">Next ›</button>
+</div>
+<div class="calendar" id="calendar"></div>
+<p class="muted">Select any date to see, add or correct transactions. A dot marks dates with entries.</p>
+<label for="selectedDate"><b>Selected date</b></label>
+<input id="selectedDate" type="date" onchange="selectDate(this.value)">
+<div id="selectedReport"></div>
+<h4>Transactions on selected date</h4>
+<div id="selectedHistory">No transactions for this date.</div>
 </section>
 
 <section class="card">
 <h3>Add Transaction</h3>
-<select id="type">
+<label for="type">Transaction type</label>
+<select id="type" onchange="transactionTypeChanged()">
 <option value="Sale">Sale</option>
 <option value="Expense">Expense</option>
+<option value="Supplier Purchase">Supplier Purchase / Credit</option>
 <option value="Supplier Payment">Supplier Payment</option>
 </select>
+<div id="supplierField" class="hidden">
+<label for="entrySupplier">Supplier</label>
+<select id="entrySupplier"></select>
+</div>
+<label for="amount">Amount (₹)</label>
 <input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount in ₹">
-<input id="note" type="text" placeholder="Description / Supplier Name">
+<label for="note">Description</label>
+<input id="note" type="text" placeholder="Description / reference">
+<label for="entryDate">Transaction date</label>
+<input id="entryDate" type="date">
 <button class="primary" onclick="addEntry()">Save Transaction</button>
 <p id="message" class="muted"></p>
 </section>
 
 <section class="card">
+<h3>Supplier Ledger</h3>
+<p class="muted">Add supplier names, record purchases on credit and payments. Existing supplier payment records are also included where their description contains the supplier name.</p>
+<h4>Add a supplier</h4>
+<input id="newSupplierName" placeholder="Supplier name">
+<input id="newSupplierPhone" placeholder="Phone number (optional)" inputmode="tel">
+<input id="newSupplierNote" placeholder="Address / details (optional)">
+<button class="primary" onclick="addSupplier()">Add Supplier</button>
+<hr>
+<label for="supplierSelect"><b>Select supplier</b></label>
+<select id="supplierSelect" onchange="renderSupplierLedger()"></select>
+<div id="supplierDetails"></div>
+<div id="supplierHistory"></div>
+</section>
+
+<section class="card">
+<h3>Accounting Reports</h3>
+<button class="primary" onclick="showReport('day')">Today's Report</button>
+<button class="primary" onclick="showReport('month')">This Month's Report</button>
+<div id="report" style="margin-top:15px"></div>
+<button class="primary" onclick="exportCSV()">Export Transactions to CSV</button>
+</section>
+
+<section class="card">
 <h3>Today's Transactions</h3>
-<div id="history">No transactions yet.</div> <button class="primary" onclick="exportBackup()">Export Backup</button> <input type="file" id="backupFile" accept=".json,application/json" onchange="importBackup(event)">
+<div id="history">No transactions yet.</div>
+<button class="primary" onclick="exportBackup()">Export Backup</button>
+<label for="backupFile" class="muted">Restore a previous JSON backup (this replaces current transaction records).</label>
+<input type="file" id="backupFile" accept=".json,application/json" onchange="importBackup(event)">
 </section>
 </main>
 
 <script>
+/* Keep this original key and transaction format for compatibility with existing data. */
 const KEY="shopLedgerEntries";
+const SUPPLIER_KEY="shopLedgerSuppliers";
 let entries=[];
-try{
-entries=JSON.parse(localStorage.getItem(KEY)||"[]");
-if(!Array.isArray(entries)) entries=[];
-}catch(e){entries=[];}
+let suppliers=[];
+let selectedDateKey=localDateKey(new Date());
+let calendarMonth=new Date();
+calendarMonth.setDate(1);
 
-function save(){
-localStorage.setItem(KEY,JSON.stringify(entries));
-}
+try {
+  const stored=localStorage.getItem(KEY);
+  entries=stored ? JSON.parse(stored) : [];
+  if(!Array.isArray(entries)) entries=[];
+} catch(e) { entries=[]; }
 
-function money(value){
-return "₹"+(value/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
-}
+try {
+  const storedSuppliers=localStorage.getItem(SUPPLIER_KEY);
+  suppliers=storedSuppliers ? JSON.parse(storedSuppliers) : [];
+  if(!Array.isArray(suppliers)) suppliers=[];
+} catch(e) { suppliers=[]; }
 
-function todayEntries(){
-const today=new Date().toDateString();
-return entries.filter(x=>new Date(x.time).toDateString()===today);
-}
-
-function render(){
-const list=todayEntries();
-const total=type=>list
-.filter(x=>x.type===type)
-.reduce((sum,x)=>sum+x.amount,0);
-
-const sales=total("Sale");
-const expenses=total("Expense");
-const suppliers=total("Supplier Payment");
-
-document.getElementById("sales").textContent=money(sales);
-document.getElementById("expenses").textContent=money(expenses);
-document.getElementById("suppliers").textContent=money(suppliers);
-document.getElementById("cash").textContent=money(sales-expenses-suppliers);
-document.getElementById("profit").textContent=money(sales-expenses);
-
-const history=document.getElementById("history");
-
-if(!list.length){
-history.textContent="No transactions yet.";
-return;
-}
-
-history.innerHTML=[...list].reverse().map(x=>{
-const index=entries.indexOf(x);
-return `
-<div class="entry">
-<b>${escapeText(x.type)}</b>
-<span style="float:right">${money(x.amount)}</span>
-<div class="muted">${escapeText(x.note)} · ${new Date(x.time).toLocaleTimeString()}</div>
-<button onclick="editEntry(${index})">Edit</button>
-<button onclick="deleteEntry(${index})">Delete</button>
-</div>`;
-}).join("");
-}
-
-
+function save(){ localStorage.setItem(KEY,JSON.stringify(entries)); }
+function saveSuppliers(){ localStorage.setItem(SUPPLIER_KEY,JSON.stringify(suppliers)); }
+function money(value){ return "₹"+(value/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function escapeText(value){
-return String(value).replace(/[&<>"']/g,c=>({
-"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-}[c]));
+  return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function localDateKey(date){
+  const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,"0"),d=String(date.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+}
+function entryDateKey(entry){ return localDateKey(new Date(entry.time)); }
+function parseDateInput(value){
+  const parts=value.split("-").map(Number);
+  return new Date(parts[0],parts[1]-1,parts[2],12,0,0,0).getTime();
+}
+function getDateEntries(key){ return entries.filter(x=>entryDateKey(x)===key); }
+function sumType(list,type){ return list.filter(x=>x.type===type).reduce((s,x)=>s+x.amount,0); }
+function todayEntries(){ return getDateEntries(localDateKey(new Date())); }
+
+function renderDashboard(){
+  const list=todayEntries();
+  const sales=sumType(list,"Sale"),expenses=sumType(list,"Expense"),payments=sumType(list,"Supplier Payment");
+  document.getElementById("sales").textContent=money(sales);
+  document.getElementById("expenses").textContent=money(expenses);
+  document.getElementById("suppliers").textContent=money(payments);
+  document.getElementById("cash").textContent=money(sales-expenses-payments);
+  document.getElementById("profit").textContent=money(sales-expenses);
+}
+function renderTodayHistory(){
+  const list=todayEntries(),el=document.getElementById("history");
+  if(!list.length){el.textContent="No transactions yet.";return;}
+  el.innerHTML=[...list].reverse().map(x=>{
+    const i=entries.indexOf(x);
+    return `<div class="entry"><b>${escapeText(x.type)}</b><span style="float:right">${money(x.amount)}</span>
+    <div class="muted">${escapeText(x.note)} · ${new Date(x.time).toLocaleTimeString()}</div>
+    <button class="smallbtn" onclick="editEntry(${i})">Edit</button><button class="smallbtn danger" onclick="deleteEntry(${i})">Delete</button></div>`;
+  }).join("");
+}
+function render(){
+  renderDashboard();renderTodayHistory();renderCalendar();renderSelectedDate();renderSupplierOptions();renderSupplierLedger();
 }
 
 function addEntry(){
-const type=document.getElementById("type").value;
-const amount=document.getElementById("amount").value;
-const note=document.getElementById("note").value.trim();
-const msg=document.getElementById("message");
-
-const number=Number(amount);
-if(!amount || !Number.isFinite(number) || number<=0){
-msg.textContent="Please enter a valid amount.";
-return;
-}
-const paise=Math.round(number*100);
-if(!Number.isSafeInteger(paise)||paise<=0){
-msg.textContent="Please enter a smaller valid amount.";
-return;
-}
-
-entries.push({
-type,
-amount:paise,
-note,
-time:Date.now()
-});
-try{
-save();
-msg.textContent="Transaction saved successfully!";
-document.getElementById("amount").value="";
-document.getElementById("note").value="";
-render();
-}catch(e){
-entries.pop();
-msg.textContent="Unable to save. Check your phone storage.";
-}
+  const type=document.getElementById("type").value;
+  const amount=document.getElementById("amount").value;
+  const note=document.getElementById("note").value.trim();
+  const dateValue=document.getElementById("entryDate").value || selectedDateKey;
+  const msg=document.getElementById("message");
+  const number=Number(amount),paise=Math.round(number*100);
+  if(!amount||!Number.isFinite(number)||number<=0||!Number.isSafeInteger(paise)){msg.textContent="Please enter a valid amount.";return;}
+  if(!dateValue){msg.textContent="Please select a date.";return;}
+  let supplierName="";
+  if(type==="Supplier Payment"||type==="Supplier Purchase"){
+    const sid=document.getElementById("entrySupplier").value;
+    const supplier=suppliers.find(s=>s.id===sid);
+    if(!supplier){msg.textContent="Please add and select a supplier first.";return;}
+    supplierName=supplier.name;
+  }
+  const entry={type,amount:paise,note,time:parseDateInput(dateValue)};
+  if(supplierName) entry.supplierName=supplierName;
+  entries.push(entry);
+  try{
+    save();msg.textContent="Transaction saved successfully!";
+    document.getElementById("amount").value="";document.getElementById("note").value="";
+    selectedDateKey=dateValue;calendarMonth=new Date(parseDateInput(dateValue));calendarMonth.setDate(1);
+    document.getElementById("entryDate").value=selectedDateKey;
+    render();
+  }catch(e){entries.pop();msg.textContent="Unable to save. Check your phone storage.";}
 }
 
-function showReport(period) {
-  const now = new Date();
+function transactionTypeChanged(){
+  const type=document.getElementById("type").value;
+  document.getElementById("supplierField").classList.toggle("hidden",!(type==="Supplier Payment"||type==="Supplier Purchase"));
+}
+function renderSupplierOptions(){
+  const entrySelect=document.getElementById("entrySupplier"),ledgerSelect=document.getElementById("supplierSelect");
+  const oldEntry=entrySelect.value,oldLedger=ledgerSelect.value;
+  const options=suppliers.map(s=>`<option value="${escapeText(s.id)}">${escapeText(s.name)}</option>`).join("");
+  entrySelect.innerHTML=options||'<option value="">Add a supplier first</option>';
+  ledgerSelect.innerHTML=options||'<option value="">No suppliers added</option>';
+  if(suppliers.some(s=>s.id===oldEntry))entrySelect.value=oldEntry;
+  if(suppliers.some(s=>s.id===oldLedger))ledgerSelect.value=oldLedger;
+  transactionTypeChanged();
+}
+function addSupplier(){
+  const name=document.getElementById("newSupplierName").value.trim();
+  if(!name){alert("Enter a supplier name.");return;}
+  if(suppliers.some(s=>s.name.toLowerCase()===name.toLowerCase())){alert("This supplier already exists.");return;}
+  const supplier={id:"sup_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),name,
+    phone:document.getElementById("newSupplierPhone").value.trim(),
+    details:document.getElementById("newSupplierNote").value.trim()};
+  suppliers.push(supplier);
+  try{saveSuppliers();document.getElementById("newSupplierName").value="";document.getElementById("newSupplierPhone").value="";document.getElementById("newSupplierNote").value="";
+    renderSupplierOptions();document.getElementById("supplierSelect").value=supplier.id;renderSupplierLedger();alert("Supplier added.");}
+  catch(e){suppliers.pop();alert("Could not save supplier.");}
+}
+function supplierForEntry(entry){
+  if(entry.supplierId){return suppliers.find(s=>s.id===entry.supplierId)||null;}
+  const name=entry.supplierName || ((entry.type==="Supplier Payment"||entry.type==="Supplier Purchase") ? entry.note : "");
+  if(!name)return null;
+  return suppliers.find(s=>s.name.toLowerCase()===String(name).toLowerCase())||{name:String(name),legacy:true};
+}
+function renderSupplierLedger(){
+  const id=document.getElementById("supplierSelect").value;
+  const supplier=suppliers.find(s=>s.id===id);
+  const details=document.getElementById("supplierDetails"),history=document.getElementById("supplierHistory");
+  if(!supplier){details.innerHTML="";history.innerHTML="";return;}
+  const related=entries.map((e,i)=>({e,i,s:supplierForEntry(e)})).filter(x=>x.s&&x.s.name.toLowerCase()===supplier.name.toLowerCase()&&(x.e.type==="Supplier Purchase"||x.e.type==="Supplier Payment"));
+  const purchases=related.filter(x=>x.e.type==="Supplier Purchase").reduce((a,x)=>a+x.e.amount,0);
+  const paid=related.filter(x=>x.e.type==="Supplier Payment").reduce((a,x)=>a+x.e.amount,0);
+  const balance=purchases-paid;
+  details.innerHTML=`<div class="stats">
+    <div class="stat"><small>Total purchases / credit recorded</small><h3>${money(purchases)}</h3></div>
+    <div class="stat"><small>Total paid</small><h3>${money(paid)}</h3></div>
+    <div class="stat"><small>Balance from recorded entries</small><h3 class="${balance>0?'red':'green'}">${money(balance)}</h3></div>
+    <div class="stat"><small>Last payment</small><h3>${related.filter(x=>x.e.type==="Supplier Payment").sort((a,b)=>b.e.time-a.e.time)[0]?money(related.filter(x=>x.e.type==="Supplier Payment").sort((a,b)=>b.e.time-a.e.time)[0].e.amount):"—"}</h3></div>
+    </div>
+    <p class="muted">${escapeText(supplier.phone||"No phone number")} · ${escapeText(supplier.details||"No extra details")}</p>
+    <button class="secondary smallbtn" onclick="editSupplier('${supplier.id}')">Edit supplier details</button>
+    <button class="danger smallbtn" onclick="deleteSupplier('${supplier.id}')">Delete supplier</button>
+    <p class="muted">Balance is based only on purchases and payments entered in this app. A negative balance means payments exceed recorded purchases.</p>`;
+  if(!related.length){history.innerHTML="<p class='muted'>No purchases or payments linked to this supplier yet.</p>";return;}
+  history.innerHTML="<h4>Supplier transaction history</h4>"+[...related].sort((a,b)=>b.e.time-a.e.time).map(x=>
+    `<div class="entry"><b>${escapeText(x.e.type)}</b><span style="float:right">${money(x.e.amount)}</span>
+    <div class="muted">${new Date(x.e.time).toLocaleDateString("en-IN")} · ${escapeText(x.e.note)}</div>
+    <button class="smallbtn" onclick="editEntry(${x.i})">Edit</button><button class="smallbtn danger" onclick="deleteEntry(${x.i})">Delete</button></div>`
+  ).join("");
+}
+function editSupplier(id){
+  const s=suppliers.find(x=>x.id===id);if(!s)return;
+  const name=prompt("Supplier name:",s.name);if(name===null)return;
+  if(!name.trim()){alert("Supplier name cannot be empty.");return;}
+  const phone=prompt("Phone number:",s.phone||"");if(phone===null)return;
+  const details=prompt("Address / details:",s.details||"");if(details===null)return;
+  s.name=name.trim();s.phone=phone.trim();s.details=details.trim();
+  saveSuppliers();render();
+}
+function deleteSupplier(id){
+  const s=suppliers.find(x=>x.id===id);if(!s)return;
+  if(!confirm("Delete supplier profile? Transactions will remain saved, but the profile will be removed."))return;
+  suppliers=suppliers.filter(x=>x.id!==id);saveSuppliers();render();
+}
 
-  const selected = entries.filter(entry => {
-    const date = new Date(entry.time);
+function changeMonth(delta){calendarMonth.setMonth(calendarMonth.getMonth()+delta);renderCalendar();}
+function renderCalendar(){
+  const el=document.getElementById("calendar");
+  const y=calendarMonth.getFullYear(),m=calendarMonth.getMonth();
+  document.getElementById("calendarMonth").textContent=calendarMonth.toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+  const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();
+  let html=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="dayname">${d}</div>`).join("");
+  for(let i=0;i<first;i++)html+='<div></div>';
+  const today=localDateKey(new Date());
+  for(let d=1;d<=days;d++){
+    const key=localDateKey(new Date(y,m,d));
+    const classes=["day",key===selectedDateKey?"selected":"",key===today?"today":"",getDateEntries(key).length?"hasdata":""].filter(Boolean).join(" ");
+    html+=`<div class="${classes}" onclick="selectDate('${key}')">${d}</div>`;
+  }
+  el.innerHTML=html;
+}
+function changeSelectedDateInput(){document.getElementById("selectedDate").value=selectedDateKey;}
+function selectDate(key){
+  if(!key)return;selectedDateKey=key;
+  const dt=new Date(parseDateInput(key));calendarMonth=new Date(dt.getFullYear(),dt.getMonth(),1);
+  document.getElementById("entryDate").value=key;
+  renderCalendar();renderSelectedDate();changeSelectedDateInput();
+}
+function renderSelectedDate(){
+  const list=getDateEntries(selectedDateKey);
+  const sales=sumType(list,"Sale"),expenses=sumType(list,"Expense"),purchases=sumType(list,"Supplier Purchase"),payments=sumType(list,"Supplier Payment");
+  document.getElementById("selectedReport").innerHTML=`<div class="stats">
+    <div class="stat"><small>Sales</small><h3>${money(sales)}</h3></div>
+    <div class="stat"><small>Expenses</small><h3>${money(expenses)}</h3></div>
+    <div class="stat"><small>Supplier purchases</small><h3>${money(purchases)}</h3></div>
+    <div class="stat"><small>Supplier payments</small><h3>${money(payments)}</h3></div>
+    </div><p>Net cash movement: <b>${money(sales-expenses-payments)}</b></p>
+    <p class="muted">Operating result estimate: ${money(sales-expenses)} (excludes cost of goods sold; not final profit).</p>`;
+  const el=document.getElementById("selectedHistory");
+  if(!list.length){el.textContent="No transactions for this date.";return;}
+  el.innerHTML=[...list].reverse().map(x=>{
+    const i=entries.indexOf(x);
+    return `<div class="entry"><b>${escapeText(x.type)}</b><span style="float:right">${money(x.amount)}</span>
+    <div class="muted">${escapeText(x.supplierName||x.note)} · ${new Date(x.time).toLocaleTimeString()}</div>
+    <button class="smallbtn" onclick="editEntry(${i})">Edit</button><button class="smallbtn danger" onclick="deleteEntry(${i})">Delete</button></div>`;
+  }).join("");
+}
 
-    if (period === "day") {
-      return date.toDateString() === now.toDateString();
-    }
-
-    return date.getFullYear() === now.getFullYear() &&
-           date.getMonth() === now.getMonth();
+function showReport(period){
+  const now=new Date();
+  const selected=entries.filter(entry=>{
+    const d=new Date(entry.time);
+    return period==="day"?localDateKey(d)===localDateKey(now):d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();
   });
-
-  const total = type => selected
-    .filter(entry => entry.type === type)
-    .reduce((sum, entry) => sum + entry.amount, 0);
-
-  const sales = total("Sale");
-  const expenses = total("Expense");
-  const suppliers = total("Supplier Payment");
-
-  const cash = sales - expenses - suppliers;
-  const estimate = sales - expenses;
-
-  const title = period === "day"
-    ? "Today's Report"
-    : "This Month's Report";
-
-  document.getElementById("report").innerHTML = `
-    <h3>${title}</h3>
-    <p>Total sales: <b>${money(sales)}</b></p>
-    <p>Operating expenses: <b>${money(expenses)}</b></p>
-    <p>Supplier payments: <b>${money(suppliers)}</b></p>
-    <hr>
-    <p>Net cash movement: <b>${money(cash)}</b></p>
-    <p>Operating result estimate: <b>${money(estimate)}</b></p>
-    <p class="muted">
-      This estimate excludes cost of goods sold, inventory adjustments,
-      and other applicable accounting adjustments. It is not final profit.
-    </p>
-    <p>Transactions counted: ${selected.length}</p>
-  `;
-}
-
-function exportCSV() {
-  const rows = [
-    ["Date", "Time", "Type", "Amount INR", "Description"]
-  ];
-
-  entries.forEach(entry => {
-    const date = new Date(entry.time);
-
-    rows.push([
-      date.toLocaleDateString("en-IN"),
-      date.toLocaleTimeString("en-IN"),
-      entry.type,
-      (entry.amount / 100).toFixed(2),
-      entry.note
-    ]);
-  });
-
-  const csv = rows.map(row =>
-    row.map(value =>
-      '"' + String(value).replace(/"/g, '""') + '"'
-    ).join(",")
-  ).join("\r\n");
-
-  const blob = new Blob(["\uFEFF" + csv], {
-    type: "text/csv;charset=utf-8;"
-  });
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = "ShopLedger-Transactions.csv";
-  link.click();
-
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function deleteEntry(index){
-if(!confirm("Delete this transaction?")) return;
-
-const old=entries;
-entries=entries.filter((_,i)=>i!==index);
-
-try{
-save();
-render();
-alert("Transaction deleted.");
-}catch(e){
-entries=old;
-alert("Could not save the change.");
-}
+  const sales=sumType(selected,"Sale"),expenses=sumType(selected,"Expense"),suppliersPaid=sumType(selected,"Supplier Payment"),purchases=sumType(selected,"Supplier Purchase");
+  document.getElementById("report").innerHTML=`<h3>${period==="day"?"Today's Report":"This Month's Report"}</h3>
+  <p>Total sales: <b>${money(sales)}</b></p><p>Operating expenses: <b>${money(expenses)}</b></p>
+  <p>Supplier purchases / credit: <b>${money(purchases)}</b></p><p>Supplier payments: <b>${money(suppliersPaid)}</b></p><hr>
+  <p>Net cash movement: <b>${money(sales-expenses-suppliersPaid)}</b></p>
+  <p>Operating result estimate: <b>${money(sales-expenses)}</b></p>
+  <p class="muted">Estimate excludes cost of goods sold and other accounting adjustments. It is not final profit.</p>
+  <p>Transactions counted: ${selected.length}</p>`;
 }
 
 function editEntry(index){
-const entry=entries[index];
-if(!entry) return;
-
-const newAmount=prompt(
-"Enter corrected amount in ₹:",
-(entry.amount/100).toFixed(2)
-);
-
-if(newAmount===null) return;
-
-const amount=Number(newAmount);
-const paise=Math.round(amount*100);
-
-if(!Number.isFinite(amount) ||
-amount<=0 ||
-!Number.isSafeInteger(paise)){
-alert("Invalid amount.");
-return;
-}
-
-const newNote=prompt("Edit description:",entry.note);
-if(newNote===null) return;
-
-const old=entries;
-entries=entries.map((x,i)=>i===index?
-{...x,amount:paise,note:newNote.trim()}:x);
-
-try{
-save();
-render();
-alert("Transaction updated.");
-}catch(e){
-entries=old;
-alert("Could not save the change.");
-}
-}
-
-function exportBackup(){
-const data=JSON.stringify(entries,null,2);
-const blob=new Blob([data],{type:"application/json"});
-const url=URL.createObjectURL(blob);
-const a=document.createElement("a");
-
-a.href=url;
-a.download="ShopLedger-Backup.json";
-a.click();
-
-setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-
-function importBackup(event){
-const file=event.target.files[0];
-if(!file) return;
-
-const reader=new FileReader();
-
-reader.onload=()=>{
-try{
-const data=JSON.parse(reader.result);
-
-if(!Array.isArray(data) ||
-!data.every(x=>
-x &&
-["Sale","Expense","Supplier Payment"].includes(x.type) &&
-Number.isSafeInteger(x.amount) &&
-x.amount>0 &&
-typeof x.note==="string" &&
-Number.isFinite(x.time)
-)){
-throw new Error("Invalid backup");
-}
-
-if(!confirm("Replace all existing transactions with this backup?"))
-return;
-
-const old=entries;
-entries=data;
-
-try{
-save();
-render();
-alert("Backup restored successfully.");
-}catch(e){
-entries=old;
-save();
-throw e;
-}
-}catch(e){
-alert("Invalid backup file.");
-}
-};
-
-reader.readAsText(file);
-  <script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js");
-  });
-}
-</script>
-</body>
+  const e=entries[index];if(!e)return;
+  const type=prompt("Type (Sale, Expense, Supplier Purchase, Supplier Payment):",e.type);if(type===null)return;
+  const allowed=["Sale","Expense","Supplier Purchase","Supplier Payment"];
   
