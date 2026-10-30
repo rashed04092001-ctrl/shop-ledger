@@ -1,0 +1,387 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#172b4d">
+  
+<meta charset="UTF-8">
+  <link rel="manifest" href="manifest.json">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop Ledger</title>
+<style>
+
+  
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5f9;color:#202b3c;font-family:Arial,sans-serif}
+header{background:#172b4d;color:white;padding:22px}
+header h2{margin:0}
+main{padding:16px;max-width:600px;margin:auto}
+.card{background:white;padding:17px;border-radius:14px;margin-bottom:14px;box-shadow:0 2px 8px #0000000d}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#eef3fa;padding:13px;border-radius:10px}
+.stat small{color:#58677c}
+.stat h3{margin:8px 0 0;font-size:21px}
+input,select{width:100%;padding:13px;border:1px solid #ccd3df;border-radius:9px;margin:7px 0;font-size:16px;background:white}
+button{border:0;padding:13px;border-radius:9px;background:#2459a6;color:white;font-size:15px;font-weight:bold;cursor:pointer}
+button:active{opacity:.8}
+.primary{width:100%;margin-top:8px}
+.entry{padding:12px 0;border-bottom:1px solid #eee}
+.entry:last-child{border:0}
+.muted{color:#68768b;font-size:13px}
+.green{color:#13834b}
+.red{color:#c23c3c}
+</style>
+</head>
+<body>
+<header>
+<h2>Shop Ledger</h2>
+<p>My Shop Accounting</p>
+</header>
+<main>
+<section class="card">
+<h3>Today's Summary</h3>
+<div class="stats">
+<div class="stat"><small>Sales</small><h3 id="sales">₹0</h3></div>
+<div class="stat"><small>Expenses</small><h3 id="expenses">₹0</h3></div>
+<div class="stat"><small>Supplier Payments</small><h3 id="suppliers">₹0</h3></div>
+<div class="stat"><small>Net Cash Movement</small><h3 id="cash">₹0</h3></div>
+</div>
+<p>Operating result estimate: <b id="profit">₹0</b></p>
+<p class="muted">Estimate excludes cost of goods sold. It is not final profit.</p>
+</section>
+
+<section class="card">
+<h3>Accounting Reports</h3>
+<button class="primary" onclick="showReport('day')">
+Daily Report
+</button>
+<button class="primary" onclick="showReport('month')">
+Monthly Report
+</button>
+<div id="report" style="margin-top:15px"></div>
+<button class="primary" onclick="exportCSV()">
+Export Transactions to CSV
+</button>
+</section>
+
+<section class="card">
+<h3>Add Transaction</h3>
+<select id="type">
+<option value="Sale">Sale</option>
+<option value="Expense">Expense</option>
+<option value="Supplier Payment">Supplier Payment</option>
+</select>
+<input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount in ₹">
+<input id="note" type="text" placeholder="Description / Supplier Name">
+<button class="primary" onclick="addEntry()">Save Transaction</button>
+<p id="message" class="muted"></p>
+</section>
+
+<section class="card">
+<h3>Today's Transactions</h3>
+<div id="history">No transactions yet.</div> <button class="primary" onclick="exportBackup()">Export Backup</button> <input type="file" id="backupFile" accept=".json,application/json" onchange="importBackup(event)">
+</section>
+</main>
+
+<script>
+const KEY="shopLedgerEntries";
+let entries=[];
+try{
+entries=JSON.parse(localStorage.getItem(KEY)||"[]");
+if(!Array.isArray(entries)) entries=[];
+}catch(e){entries=[];}
+
+function save(){
+localStorage.setItem(KEY,JSON.stringify(entries));
+}
+
+function money(value){
+return "₹"+(value/100).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function todayEntries(){
+const today=new Date().toDateString();
+return entries.filter(x=>new Date(x.time).toDateString()===today);
+}
+
+function render(){
+const list=todayEntries();
+const total=type=>list
+.filter(x=>x.type===type)
+.reduce((sum,x)=>sum+x.amount,0);
+
+const sales=total("Sale");
+const expenses=total("Expense");
+const suppliers=total("Supplier Payment");
+
+document.getElementById("sales").textContent=money(sales);
+document.getElementById("expenses").textContent=money(expenses);
+document.getElementById("suppliers").textContent=money(suppliers);
+document.getElementById("cash").textContent=money(sales-expenses-suppliers);
+document.getElementById("profit").textContent=money(sales-expenses);
+
+const history=document.getElementById("history");
+
+if(!list.length){
+history.textContent="No transactions yet.";
+return;
+}
+
+history.innerHTML=[...list].reverse().map(x=>{
+const index=entries.indexOf(x);
+return `
+<div class="entry">
+<b>${escapeText(x.type)}</b>
+<span style="float:right">${money(x.amount)}</span>
+<div class="muted">${escapeText(x.note)} · ${new Date(x.time).toLocaleTimeString()}</div>
+<button onclick="editEntry(${index})">Edit</button>
+<button onclick="deleteEntry(${index})">Delete</button>
+</div>`;
+}).join("");
+}
+
+
+function escapeText(value){
+return String(value).replace(/[&<>"']/g,c=>({
+"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
+}
+
+function addEntry(){
+const type=document.getElementById("type").value;
+const amount=document.getElementById("amount").value;
+const note=document.getElementById("note").value.trim();
+const msg=document.getElementById("message");
+
+const number=Number(amount);
+if(!amount || !Number.isFinite(number) || number<=0){
+msg.textContent="Please enter a valid amount.";
+return;
+}
+const paise=Math.round(number*100);
+if(!Number.isSafeInteger(paise)||paise<=0){
+msg.textContent="Please enter a smaller valid amount.";
+return;
+}
+
+entries.push({
+type,
+amount:paise,
+note,
+time:Date.now()
+});
+try{
+save();
+msg.textContent="Transaction saved successfully!";
+document.getElementById("amount").value="";
+document.getElementById("note").value="";
+render();
+}catch(e){
+entries.pop();
+msg.textContent="Unable to save. Check your phone storage.";
+}
+}
+
+function showReport(period) {
+  const now = new Date();
+
+  const selected = entries.filter(entry => {
+    const date = new Date(entry.time);
+
+    if (period === "day") {
+      return date.toDateString() === now.toDateString();
+    }
+
+    return date.getFullYear() === now.getFullYear() &&
+           date.getMonth() === now.getMonth();
+  });
+
+  const total = type => selected
+    .filter(entry => entry.type === type)
+    .reduce((sum, entry) => sum + entry.amount, 0);
+
+  const sales = total("Sale");
+  const expenses = total("Expense");
+  const suppliers = total("Supplier Payment");
+
+  const cash = sales - expenses - suppliers;
+  const estimate = sales - expenses;
+
+  const title = period === "day"
+    ? "Today's Report"
+    : "This Month's Report";
+
+  document.getElementById("report").innerHTML = `
+    <h3>${title}</h3>
+    <p>Total sales: <b>${money(sales)}</b></p>
+    <p>Operating expenses: <b>${money(expenses)}</b></p>
+    <p>Supplier payments: <b>${money(suppliers)}</b></p>
+    <hr>
+    <p>Net cash movement: <b>${money(cash)}</b></p>
+    <p>Operating result estimate: <b>${money(estimate)}</b></p>
+    <p class="muted">
+      This estimate excludes cost of goods sold, inventory adjustments,
+      and other applicable accounting adjustments. It is not final profit.
+    </p>
+    <p>Transactions counted: ${selected.length}</p>
+  `;
+}
+
+function exportCSV() {
+  const rows = [
+    ["Date", "Time", "Type", "Amount INR", "Description"]
+  ];
+
+  entries.forEach(entry => {
+    const date = new Date(entry.time);
+
+    rows.push([
+      date.toLocaleDateString("en-IN"),
+      date.toLocaleTimeString("en-IN"),
+      entry.type,
+      (entry.amount / 100).toFixed(2),
+      entry.note
+    ]);
+  });
+
+  const csv = rows.map(row =>
+    row.map(value =>
+      '"' + String(value).replace(/"/g, '""') + '"'
+    ).join(",")
+  ).join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "ShopLedger-Transactions.csv";
+  link.click();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function deleteEntry(index){
+if(!confirm("Delete this transaction?")) return;
+
+const old=entries;
+entries=entries.filter((_,i)=>i!==index);
+
+try{
+save();
+render();
+alert("Transaction deleted.");
+}catch(e){
+entries=old;
+alert("Could not save the change.");
+}
+}
+
+function editEntry(index){
+const entry=entries[index];
+if(!entry) return;
+
+const newAmount=prompt(
+"Enter corrected amount in ₹:",
+(entry.amount/100).toFixed(2)
+);
+
+if(newAmount===null) return;
+
+const amount=Number(newAmount);
+const paise=Math.round(amount*100);
+
+if(!Number.isFinite(amount) ||
+amount<=0 ||
+!Number.isSafeInteger(paise)){
+alert("Invalid amount.");
+return;
+}
+
+const newNote=prompt("Edit description:",entry.note);
+if(newNote===null) return;
+
+const old=entries;
+entries=entries.map((x,i)=>i===index?
+{...x,amount:paise,note:newNote.trim()}:x);
+
+try{
+save();
+render();
+alert("Transaction updated.");
+}catch(e){
+entries=old;
+alert("Could not save the change.");
+}
+}
+
+function exportBackup(){
+const data=JSON.stringify(entries,null,2);
+const blob=new Blob([data],{type:"application/json"});
+const url=URL.createObjectURL(blob);
+const a=document.createElement("a");
+
+a.href=url;
+a.download="ShopLedger-Backup.json";
+a.click();
+
+setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function importBackup(event){
+const file=event.target.files[0];
+if(!file) return;
+
+const reader=new FileReader();
+
+reader.onload=()=>{
+try{
+const data=JSON.parse(reader.result);
+
+if(!Array.isArray(data) ||
+!data.every(x=>
+x &&
+["Sale","Expense","Supplier Payment"].includes(x.type) &&
+Number.isSafeInteger(x.amount) &&
+x.amount>0 &&
+typeof x.note==="string" &&
+Number.isFinite(x.time)
+)){
+throw new Error("Invalid backup");
+}
+
+if(!confirm("Replace all existing transactions with this backup?"))
+return;
+
+const old=entries;
+entries=data;
+
+try{
+save();
+render();
+alert("Backup restored successfully.");
+}catch(e){
+entries=old;
+save();
+throw e;
+}
+}catch(e){
+alert("Invalid backup file.");
+}
+};
+
+reader.readAsText(file);
+  <script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js");
+  });
+}
+</script>
+</body>
+  

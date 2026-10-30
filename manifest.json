@@ -1,0 +1,17 @@
+
+{
+  "name": "Shop Ledger",
+  "short_name": "Shop Ledger",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f5f9",
+  "theme_color": "#172b4d",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
